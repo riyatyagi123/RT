@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Svastha — Calm, simple healthcare booking{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  {# Alpine components (Alpine.data / alpine:init listeners) must load and register
+     BEFORE Alpine's own script runs, or Alpine starts before it knows about them. #}
+  {% block alpine_components %}{% endblock %}
+  <script src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+</head>
+{% set is_landing_hero = request.endpoint == 'main.index' and not current_user.is_authenticated %}
+<body>
+  <nav class="navbar{% if is_landing_hero %} navbar-floating{% endif %}">
+    <a class="brand" href="{{ url_for('main.index') }}">
+      <svg class="brand-mark" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="34" height="34" rx="10" fill="#3f7d5c"/>
+        <path d="M5 18H10.5L13.5 8.5L17.5 27L20.5 13.5L23.5 18H29" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      Svastha
+    </a>
+    <div class="nav-links">
+      {% if current_user.is_authenticated %}
+        {% if current_user.role == 'patient' %}
+          <a href="{{ url_for('patient.browse_doctors') }}">Find a Doctor</a>
+          <a href="{{ url_for('patient.my_appointments') }}">My Appointments</a>
+        {% elif current_user.role == 'doctor' %}
+          <a href="{{ url_for('doctor.dashboard') }}">Dashboard</a>
+        {% endif %}
+        {% if current_user.role in ('patient', 'doctor') %}
+          <a href="{{ url_for('voice.voice_assistant') }}">Voice Assistant</a>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}">Logout</a>
+      {% else %}
+        <div class="auth-menu" x-data="{ open: false, role: null }" @click.outside="open = false; role = null" @keyup.escape="open = false; role = null">
+          <button type="button" class="cta auth-menu-trigger" @click="open = !open; role = null" :aria-expanded="open.toString()">
+            Login / Sign Up
+            <svg class="auth-menu-chevron" :class="{ 'is-open': open }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="auth-menu-panel" x-show="open" x-cloak x-transition.opacity.duration.120ms>
+            <template x-if="!role">
+              <div class="auth-menu-step">
+                <p class="auth-menu-label">I am a&hellip;</p>
+                <button type="button" class="auth-menu-role" @click="role = 'patient'">
+                  Patient
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+                <button type="button" class="auth-menu-role" @click="role = 'doctor'">
+                  Doctor
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+            </template>
+            <template x-if="role">
+              <div class="auth-menu-step">
+                <button type="button" class="auth-menu-back" @click="role = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  Back
+                </button>
+                <p class="auth-menu-label" x-text="'Continue as ' + (role === 'patient' ? 'Patient' : 'Doctor')"></p>
+                <a class="auth-menu-action" :href="'{{ url_for('auth.login') }}?role=' + role">Log in</a>
+                <a class="auth-menu-action auth-menu-action-primary" :href="'{{ url_for('auth.register') }}?role=' + role">Sign up</a>
+              </div>
+            </template>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </nav>
+
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    &copy; {{ now_year }} Svastha. Care that feels calm.
+  </footer>
+
+  {% macro chat_mascot() %}
+  <svg class="ai-chat-mascot" viewBox="0 0 60 60" aria-hidden="true">
+    <ellipse cx="30" cy="54" rx="10" ry="3" fill="#000" opacity="0.08"/>
+    <path d="M17 34c0-9.4 5.8-16 13-16s13 6.6 13 16c0 8-3 12-13 12s-13-4-13-12z" fill="#fff"/>
+    <path d="M25 21.5l5 5.5 5-5.5" fill="none" stroke="#d8d4c8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="20.5" y="36" width="7" height="5" rx="1" fill="#eaf2ee" stroke="#3f7d5c" stroke-width="1"/>
+    <path d="M22.9 38.3h2.2M24 37.2v2.2" stroke="#3f7d5c" stroke-width="0.9" stroke-linecap="round"/>
+    <circle cx="30" cy="28" r="10.5" fill="#f6c9a0"/>
+    <circle cx="26" cy="27.3" r="2.6" fill="none" stroke="#3a3a3a" stroke-width="1.1"/>
+    <circle cx="34" cy="27.3" r="2.6" fill="none" stroke="#3a3a3a" stroke-width="1.1"/>
+    <path d="M28.6 27.3h2.8" stroke="#3a3a3a" stroke-width="1.1"/>
+    <circle cx="26" cy="27.3" r="0.9" fill="#2b2b2b"/>
+    <circle cx="34" cy="27.3" r="0.9" fill="#2b2b2b"/>
+    <path d="M25.8 32.5c1.4 1.5 7 1.5 8.4 0" stroke="#2b2b2b" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+    <circle cx="21" cy="30.5" r="1.8" fill="#f4a898" opacity="0.5"/>
+    <circle cx="39" cy="30.5" r="1.8" fill="#f4a898" opacity="0.5"/>
+    <path d="M22 38.5c1.4-1 2.8-1.4 3.8-1.4M38 38.5c-1.4-1-2.8-1.4-3.8-1.4" stroke="#3f7d5c" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <circle cx="30" cy="41.5" r="2.1" fill="#3f7d5c"/>
+  </svg>
+  {% endmacro %}
+
+  {% if current_user.is_authenticated and current_user.role in ['patient', 'doctor'] %}
+  <div
+    class="ai-chat"
+    x-data="{
+      open: false,
+      loaded: false,
+      sending: false,
+      input: '',
+      turns: [],
+      init() {
+        // A tool action can force-navigate to a real page mid-conversation
+        // (see send() below) — that's a full page load, which would
+        // otherwise silently close the widget. Restore it here instead.
+        if (sessionStorage.getItem('svastha_chat_open') === '1') {
+          this.open = true;
+          this.ensureLoaded();
+        }
+      },
+      toggleOpen() {
+        this.open = !this.open;
+        if (this.open) {
+          sessionStorage.setItem('svastha_chat_open', '1');
+          this.ensureLoaded();
+        } else {
+          sessionStorage.removeItem('svastha_chat_open');
+        }
+      },
+      closeChat() {
+        this.open = false;
+        sessionStorage.removeItem('svastha_chat_open');
+      },
+      async ensureLoaded() {
+        if (this.loaded) return;
+        this.loaded = true;
+        try {
+          const res = await fetch('{{ url_for('ai_agent.history') }}');
+          const data = await res.json();
+          this.turns = data.turns || [];
+          this.$nextTick(() => this.scrollToBottom());
+        } catch (e) {}
+      },
+      async send() {
+        const text = this.input.trim();
+        if (!text || this.sending) return;
+        this.turns.push({ role: 'user', text: text });
+        this.input = '';
+        this.sending = true;
+        this.$nextTick(() => this.scrollToBottom());
+        try {
+          const res = await fetch('{{ url_for('ai_agent.chat') }}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content,
+            },
+            body: JSON.stringify({ message: text }),
+          });
+          const data = await res.json();
+          this.turns.push({ role: 'assistant', text: data.reply || data.error || 'Something went wrong.' });
+          if (data.redirect && data.redirect !== window.location.pathname) {
+            // Give the user a moment to read the reply before the page navigates
+            // to show the real doctor/appointments page, not just the chat text.
+            // Keep the widget marked open so init() reopens it after the reload.
+            sessionStorage.setItem('svastha_chat_open', '1');
+            setTimeout(() => { window.location.href = data.redirect; }, 1200);
+          }
+        } catch (e) {
+          this.turns.push({ role: 'assistant', text: 'I couldn\'t reach the assistant — please check your connection and try again.' });
+        }
+        this.sending = false;
+        this.$nextTick(() => this.scrollToBottom());
+      },
+      scrollToBottom() {
+        const el = this.$refs.log;
+        if (el) el.scrollTop = el.scrollHeight;
+      },
+    }"
+    @keyup.escape="closeChat()"
+  >
+    <div x-show="!open">{{ chat_mascot() }}</div>
+    <button type="button" class="ai-chat-toggle" @click="toggleOpen()" :aria-expanded="open.toString()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" x-show="!open"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" x-show="open" x-cloak><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+
+    <div class="ai-chat-panel" x-show="open" x-cloak x-transition.opacity.duration.150ms>
+      <div class="ai-chat-header">Svastha Assistant</div>
+      <div class="ai-chat-log" x-ref="log">
+        <template x-if="turns.length === 0">
+          <p class="ai-chat-empty">Ask me to find a doctor, check availability, book, reschedule, or cancel an appointment.</p>
+        </template>
+        <template x-for="(turn, i) in turns" :key="i">
+          <div class="ai-chat-msg" :class="turn.role === 'user' ? 'ai-chat-msg-user' : 'ai-chat-msg-assistant'" x-text="turn.text"></div>
+        </template>
+        <div class="ai-chat-msg ai-chat-msg-assistant ai-chat-typing" x-show="sending" x-cloak>Thinking&hellip;</div>
+      </div>
+      <form class="ai-chat-input-row" @submit.prevent="send()">
+        <input type="text" x-model="input" placeholder="Type a message&hellip;" :disabled="sending" autocomplete="off">
+        <button type="submit" :disabled="sending || !input.trim()">Send</button>
+      </form>
+    </div>
+  </div>
+  {% elif not current_user.is_authenticated %}
+  <div
+    class="ai-chat"
+    x-data="{ open: false, role: null }"
+    @click.outside="open = false; role = null"
+    @keyup.escape="open = false; role = null"
+  >
+    <div x-show="!open">{{ chat_mascot() }}</div>
+    <button type="button" class="ai-chat-toggle" @click="open = !open" :aria-expanded="open.toString()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" x-show="!open"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" x-show="open" x-cloak><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+
+    <div class="ai-chat-panel ai-chat-panel-anon" x-show="open" x-cloak x-transition.opacity.duration.150ms>
+      <div class="ai-chat-header">Svastha Assistant</div>
+      <div class="ai-chat-log">
+        <div class="ai-chat-msg ai-chat-msg-assistant">Hi, I'm the Svastha Assistant. Once you're signed in, I can help you find the right doctor, check real-time availability, and book, reschedule, or cancel appointments — right here in this chat.</div>
+        <div class="ai-chat-msg ai-chat-msg-assistant">Sign up or log in to get started — are you here as a patient or a doctor?</div>
+      </div>
+      <div class="ai-chat-anon-actions">
+        <template x-if="!role">
+          <div class="auth-menu-step">
+            <button type="button" class="auth-menu-role" @click="role = 'patient'">
+              Patient
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button type="button" class="auth-menu-role" @click="role = 'doctor'">
+              Doctor
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        </template>
+        <template x-if="role">
+          <div class="auth-menu-step">
+            <button type="button" class="auth-menu-back" @click="role = null">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              Back
+            </button>
+            <p class="auth-menu-label" x-text="'Continue as ' + (role === 'patient' ? 'Patient' : 'Doctor')"></p>
+            <a class="auth-menu-action" :href="'{{ url_for('auth.login') }}?role=' + role">Log in</a>
+            <a class="auth-menu-action auth-menu-action-primary" :href="'{{ url_for('auth.register') }}?role=' + role">Sign up</a>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</body>
+</html>

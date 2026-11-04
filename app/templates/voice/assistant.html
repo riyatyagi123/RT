@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Voice Assistant — Svastha{% endblock %}
+{% block content %}
+<div class="voice-page">
+  <div class="page-header">
+    <h1>Voice Assistant</h1>
+    <p>Talk to Svastha's booking assistant out loud, like a phone call, right here in your browser.</p>
+  </div>
+
+  <section class="voice-call-card" id="voice-call" data-state="idle">
+    <button type="button" class="voice-orb" id="voice-start" aria-label="Start voice call">
+      <svg class="voice-orb-icon voice-orb-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/><path d="M8 21h8"/></svg>
+    </button>
+    <p class="voice-status" id="voice-status" role="status" aria-live="polite">Tap the microphone to start talking</p>
+    <p class="voice-hint" id="voice-hint">Try: "Find me a cardiologist" or "What appointments do I have?"</p>
+    <button type="button" class="voice-end" id="voice-end" hidden>End call</button>
+
+    <div class="voice-log" id="voice-log" aria-live="polite" hidden></div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var CHAT_URL = "{{ url_for('ai_agent.chat') }}";
+  var GREETING = {{ ("Hello " ~ (current_user.name.split()[0] if current_user.name else "there") ~ ", this is Svastha's booking assistant. I can find a doctor, check availability, or book, cancel or reschedule an appointment. How can I help you today?") | tojson }};
+  var MAX_SILENT_TURNS = 3;
+
+  var card = document.getElementById("voice-call");
+  var startBtn = document.getElementById("voice-start");
+  var endBtn = document.getElementById("voice-end");
+  var statusEl = document.getElementById("voice-status");
+  var hintEl = document.getElementById("voice-hint");
+  var logEl = document.getElementById("voice-log");
+
+  var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var synth = window.speechSynthesis;
+
+  function setState(state, text) {
+    card.dataset.state = state;
+    statusEl.textContent = text;
+  }
+
+  if (!Recognition || !synth) {
+    setState("unsupported", "Voice isn't supported in this browser.");
+    hintEl.textContent = "Please open this page in Google Chrome or Microsoft Edge on a computer or Android phone.";
+    startBtn.disabled = true;
+    return;
+  }
+
+  var active = false;
+  var recognizer = null;
+  var silentTurns = 0;
+  var voice = null;
+
+  function pickVoice() {
+    var voices = synth.getVoices() || [];
+    voice =
+      voices.find(function (v) { return /^en[-_]IN$/i.test(v.lang); }) ||
+      voices.find(function (v) { return /^en[-_]GB$/i.test(v.lang); }) ||
+      voices.find(function (v) { return /^en/i.test(v.lang); }) ||
+      null;
+  }
+  pickVoice();
+  if ("onvoiceschanged" in synth) synth.onvoiceschanged = pickVoice;
+
+  function addLine(role, text) {
+    logEl.hidden = false;
+    var row = document.createElement("div");
+    row.className = "voice-line voice-line-" + role;
+    var who = document.createElement("span");
+    who.className = "voice-who";
+    who.textContent = role === "user" ? "You" : "Assistant";
+    var body = document.createElement("span");
+    body.className = "voice-text";
+    body.textContent = text;
+    row.appendChild(who);
+    row.appendChild(body);
+    logEl.appendChild(row);
+    logEl.scrollTop = logEl.scrollHeight;
+    return body;
+  }
+
+  // Speak sentence by sentence: Chrome silently cuts off long utterances, and
+  // short ones also let "End call" stop the assistant quickly.
+  function speak(text) {
+    return new Promise(function (resolve) {
+      synth.cancel();
+      var parts = (text.match(/[^.!?]+[.!?]*/g) || [text])
+        .map(function (p) { return p.trim(); })
+        .filter(Boolean);
+      var i = 0;
+      function next() {
+        if (!active || i >= parts.length) { resolve(); return; }
+        var u = new SpeechSynthesisUtterance(parts[i++]);
+        if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = "en-IN"; }
+        u.rate = 1.0;
+        // Safety net: some browsers occasionally never fire onend.
+        var words = u.text.split(/\s+/).length;
+        var guard = setTimeout(next, 2500 + words * 450);
+        u.onend = u.onerror = function () { clearTimeout(guard); next(); };
+        synth.speak(u);
+      }
+      next();
+    });
+  }
+
+  function listen() {
+    if (!active) return;
+    var finalText = "";
+    var liveLine = null;
+    recognizer = new Recognition();
+    recognizer.lang = "en-IN";
+    recognizer.interimResults = true;
+    recognizer.continuous = false;
+    recognizer.maxAlternatives = 1;
+
+    recognizer.onresult = function (event) {
+      var interim = "";
+      for (var k = event.resultIndex; k < event.results.length; k++) {
+        var r = event.results[k];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      var shown = (finalText + " " + interim).trim();
+      if (shown) {
+        if (!liveLine) liveLine = addLine("user", shown);
+        else liveLine.textContent = shown;
+      }
+    };
+
+    recognizer.onerror = function (event) {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        endCall("Microphone access is blocked. Allow the microphone for this site (the icon in the address bar) and try again.");
+      } else if (event.error === "network") {
+        endCall("Speech recognition needs an internet connection. Check your connection and try again.");
+      } else if (event.error === "audio-capture") {
+        endCall("No microphone was found. Connect a microphone and try again.");
+      }
+      // "no-speech" and "aborted" are handled in onend.
+    };
+
+    recognizer.onend = function () {
+      recognizer = null;
+      if (!active) return;
+      var text = finalText.trim();
+      if (text) {
+        silentTurns = 0;
+        if (liveLine) liveLine.textContent = text;
+        handleUtterance(text);
+        return;
+      }
+      silentTurns += 1;
+      if (silentTurns >= MAX_SILENT_TURNS) {
+        setState("speaking", "Speaking…");
+        speak("I can't hear anything, so I'll end the call now. Goodbye!").then(function () {
+          endCall("Call ended — no speech was heard.");
+        });
+      } else if (silentTurns === MAX_SILENT_TURNS - 1) {
+        setState("speaking", "Speaking…");
+        speak("Sorry, I didn't catch that. Could you say it again?").then(startListening);
+      } else {
+        startListening();
+      }
+    };
+
+    try {
+      recognizer.start();
+    } catch (e) {
+      setTimeout(startListening, 300);
+    }
+  }
+
+  function startListening() {
+    if (!active) return;
+    setState("listening", "Listening… go ahead and speak");
+    listen();
+  }
+
+  function handleUtterance(text) {
+    setState("thinking", "Thinking…");
+    var csrf = document.querySelector("meta[name=csrf-token]").content;
+    fetch(CHAT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ message: text, channel: "voice" }),
+    })
+      .then(function (res) {
+        if (res.status === 401 || res.status === 403) throw new Error("auth");
+        return res.json();
+      })
+      .then(function (data) {
+        if (!active) return;
+        var reply = data.speech || data.reply || data.error || "Sorry, something went wrong.";
+        addLine("assistant", reply);
+        setState("speaking", "Speaking…");
+        return speak(reply).then(function () {
+          if (data.end_call) endCall("Call ended. Tap the microphone to talk again.");
+          else startListening();
+        });
+      })
+      .catch(function (err) {
+        if (!active) return;
+        if (err && err.message === "auth") {
+          endCall("Your session has expired. Please log in again.");
+          return;
+        }
+        var msg = "I couldn't reach the assistant. Please check your connection.";
+        addLine("assistant", msg);
+        setState("speaking", "Speaking…");
+        speak(msg).then(startListening);
+      });
+  }
+
+  function startCall() {
+    if (active) return;
+    active = true;
+    silentTurns = 0;
+    logEl.innerHTML = "";
+    startBtn.disabled = true;
+    endBtn.hidden = false;
+    hintEl.hidden = true;
+    addLine("assistant", GREETING);
+    setState("speaking", "Speaking…");
+    speak(GREETING).then(startListening);
+  }
+
+  function endCall(message) {
+    active = false;
+    if (recognizer) { try { recognizer.abort(); } catch (e) {} recognizer = null; }
+    synth.cancel();
+    startBtn.disabled = false;
+    endBtn.hidden = true;
+    setState("idle", message || "Call ended. Tap the microphone to talk again.");
+  }
+
+  startBtn.addEventListener("click", startCall);
+  endBtn.addEventListener("click", function () { endCall(); });
+  window.addEventListener("pagehide", function () { if (active) endCall(); });
+})();
+</script>
+{% endblock %}

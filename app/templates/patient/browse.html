@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Find a Doctor — Svastha{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Find a Doctor</h1>
+  <p>Search by specialty, or browse everyone available right now.</p>
+</div>
+
+<form method="get" class="search-bar">
+  <input type="text" name="specialty" placeholder="Search specialty (e.g. Cardiology)" value="{{ specialty }}">
+  <button type="submit">Search</button>
+</form>
+
+{% if doctors %}
+  <div class="doctor-grid">
+    {% for doc in doctors %}
+      {% set detail_url = url_for('patient.doctor_detail', doctor_user_id=doc.user_id) %}
+      <div class="doctor-card">
+        <div class="doctor-card-top">
+          <div class="doctor-card-photo">
+            {% if doc.photo_url %}<img src="{{ doc.photo_url }}" alt="{{ doc.user.name }}">{% endif %}
+          </div>
+          <div class="doctor-card-heading">
+            <h3>{{ doc.user.name }}</h3>
+            <p class="doctor-card-role">{{ doc.specialty }} &middot; Svastha</p>
+          </div>
+        </div>
+
+        <div class="doctor-card-tags">
+          <span class="tag-badge"><strong>Specialty</strong> {{ doc.specialty }}</span>
+        </div>
+
+        <div class="doctor-card-stats">
+          <div class="stat-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+            <div><strong>{{ doc.years_experience or "—" }}{% if doc.years_experience %} Years{% endif %}</strong><span>Experience</span></div>
+          </div>
+          <div class="stat-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <div><strong>{{ doc.clinic_city or "—" }}</strong><span>Location</span></div>
+          </div>
+        </div>
+
+        <div class="doctor-card-actions">
+          <a class="btn-half btn-half-outline" href="{{ detail_url }}">View Full Profile</a>
+          <a class="btn-half btn-half-fill" href="{{ detail_url }}#schedule">Book Appointment</a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    No doctors found{% if specialty %} for &ldquo;{{ specialty }}&rdquo;{% endif %}.
+    {% if specialty %}<br><a href="{{ url_for('patient.browse_doctors') }}">Clear search</a>{% endif %}
+  </div>
+{% endif %}
+{% endblock %}

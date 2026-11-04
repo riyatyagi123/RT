@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ doctor.name }} — Svastha{% endblock %}
+{% block alpine_components %}
+  <script src="{{ url_for('static', filename='js/booking-calendar.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+
+<div class="doctor-detail-header">
+  <div class="doctor-detail-photo">
+    {% if doctor.doctor_profile.photo_url %}<img src="{{ doctor.doctor_profile.photo_url }}" alt="{{ doctor.name }}">{% endif %}
+  </div>
+  <div class="doctor-detail-info">
+    <h1>{{ doctor.name }}</h1>
+    <p class="doctor-detail-role">{{ doctor.doctor_profile.specialty }} &middot; Svastha{% if doctor.doctor_profile.clinic_city %}, {{ doctor.doctor_profile.clinic_city }}{% endif %}</p>
+    <div class="doctor-card-tags">
+      <span class="tag-badge"><strong>Specialty</strong> {{ doctor.doctor_profile.specialty }}</span>
+    </div>
+  </div>
+  <div class="doctor-detail-statbox">
+    <div class="stat-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+      <div><strong>{{ doctor.doctor_profile.years_experience or "—" }}{% if doctor.doctor_profile.years_experience %} Years{% endif %}</strong><span>Experience</span></div>
+    </div>
+    <div class="stat-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      <div><strong>{{ doctor.doctor_profile.clinic_city or "—" }}</strong><span>Location</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-columns">
+  <div class="detail-col-left">
+    {% if doctor.doctor_profile.bio %}
+      <div class="info-card">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+          About
+        </h3>
+        <p class="info-card-text">{{ doctor.doctor_profile.bio }}</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="detail-col-right" id="schedule">
+    <div class="schedule-heading">
+      <h2>Schedule Appointment</h2>
+      <span class="visit-mode-badge">In-person visit</span>
+    </div>
+
+    <form method="post" action="{{ url_for('patient.book') }}"
+          x-data='bookingCalendar({{ slots_by_date|tojson }})'>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="doctor_id" value="{{ doctor.id }}">
+      <input type="hidden" name="slot_datetime" x-bind:value="selectedSlot">
+
+      <div class="booking-layout">
+        <div class="calendar-card">
+          <div class="calendar-header">
+            <button type="button" class="calendar-nav-btn"
+                    @click="prevMonth()"
+                    :disabled="viewYear < (new Date()).getFullYear() || (viewYear === (new Date()).getFullYear() && viewMonth <= (new Date()).getMonth())">
+              &lsaquo;
+            </button>
+            <h3 x-text="monthLabel()"></h3>
+            <button type="button" class="calendar-nav-btn" @click="nextMonth()">&rsaquo;</button>
+          </div>
+          <div class="calendar-grid">
+            <template x-for="wd in weekdayLabels" :key="wd">
+              <div class="calendar-weekday" x-text="wd"></div>
+            </template>
+            <template x-for="(cell, idx) in calendarCells()" :key="idx">
+              <div class="calendar-cell"
+                   :class="{ 'empty-day': !cell, 'has-slots': cell && hasSlots(cell), 'selected': cell && cell === selectedDate }"
+                   @click="cell && selectDate(cell)"
+                   x-text="dayNum(cell)">
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="slot-panel">
+          <template x-if="selectedDate">
+            <div>
+              <h3 x-text="formattedSelectedDate()"></h3>
+              <template x-for="p in periods" :key="p">
+                <template x-if="(selectedDayPeriods()[p] || []).length">
+                  <div class="period-accordion">
+                    <div class="period-header" @click="togglePeriod(p)">
+                      <span x-text="periodLabels[p]"></span>
+                      <span class="count" x-text="(selectedDayPeriods()[p] || []).length + ' slots'"></span>
+                    </div>
+                    <div class="slot-grid" x-show="openPeriod === p" x-transition>
+                      <template x-for="slot in selectedDayPeriods()[p]" :key="slot.iso">
+                        <div class="slot-btn" :class="{selected: selectedSlot === slot.iso}"
+                             @click="selectSlot(slot.iso)" x-text="slot.label"></div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </template>
+            </div>
+          </template>
+          <template x-if="!selectedDate">
+            <div class="no-date-selected">No upcoming availability found for this doctor.</div>
+          </template>
+        </div>
+      </div>
+
+      <div class="form-group" style="max-width:420px; margin-top:1.25rem;">
+        <label>Notes for the doctor (optional)</label>
+        <textarea name="notes" rows="2"></textarea>
+      </div>
+
+      <button type="submit" class="btn-primary" style="max-width:220px;" :disabled="!selectedSlot">
+        Book appointment
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

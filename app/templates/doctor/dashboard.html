@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Svastha{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Your week at a glance. Drag across empty time to block it, or click an appointment for details.</p>
+  </div>
+  <span class="live-indicator" id="live-indicator">
+    <span class="live-dot"></span> Live
+  </span>
+</div>
+
+<section class="doc-cal" id="doc-cal"
+         data-events-url="{{ url_for('doctor.calendar_events') }}"
+         data-absences-url="{{ url_for('doctor.create_absence') }}"
+         data-cancel-base="{{ url_for('doctor.cancel_from_calendar', appointment_id=0) }}">
+  <div class="cal-toolbar">
+    <div class="cal-nav">
+      <button type="button" class="cal-btn" data-cal-today>Today</button>
+      <button type="button" class="cal-icon-btn" data-cal-prev aria-label="Previous week">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button type="button" class="cal-icon-btn" data-cal-next aria-label="Next week">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <h2 class="cal-title" data-cal-title aria-live="polite"></h2>
+    </div>
+    <div class="cal-tools">
+      <ul class="cal-legend" aria-label="Legend">
+        <li><span class="cal-swatch cal-swatch-appt"></span>Appointment</li>
+        <li><span class="cal-swatch cal-swatch-block"></span>Blocked</li>
+        <li><span class="cal-swatch cal-swatch-work"></span>Working hours</li>
+      </ul>
+      <button type="button" class="cal-btn cal-btn-primary" data-cal-block>+ Block time</button>
+    </div>
+  </div>
+
+  <div class="cal-scroll">
+    <div class="cal-grid">
+      <div class="cal-head" data-cal-head></div>
+      <div class="cal-body" data-cal-body></div>
+    </div>
+  </div>
+  <p class="cal-status" data-cal-status role="status"></p>
+</section>
+
+<dialog class="cal-dialog" id="cal-dialog" aria-labelledby="cal-dialog-title">
+  <div class="cal-dialog-head">
+    <h3 id="cal-dialog-title" data-dlg-title></h3>
+    <button type="button" class="cal-icon-btn" data-dlg-close aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="cal-dialog-body" data-dlg-body></div>
+  <div class="cal-dialog-actions" data-dlg-actions></div>
+</dialog>
+<div class="cal-toast" id="cal-toast" role="status" hidden></div>
+
+<h2 class="section-title">Upcoming appointments</h2>
+<div id="appointment-list-container">
+  {% include "partials/doctor_appointments.html" %}
+</div>
+
+<script src="{{ url_for('static', filename='js/doctor-calendar.js') }}" defer></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" defer onload="window.__socketIoReady=true"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    function connect() {
+      if (typeof io === "undefined") { setTimeout(connect, 100); return; }
+      const socket = io();
+      socket.on("appointments_changed", function () {
+        if (window.SvasthaDoctorCalendar) window.SvasthaDoctorCalendar.reload();
+        fetch("{{ url_for('doctor.appointments_partial') }}")
+          .then((res) => res.text())
+          .then((html) => {
+            document.getElementById("appointment-list-container").innerHTML = html;
+            const indicator = document.getElementById("live-indicator");
+            indicator.classList.add("live-pulse");
+            setTimeout(() => indicator.classList.remove("live-pulse"), 1200);
+          });
+      });
+    }
+    connect();
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% if appointments %}
+  <div class="appointment-list">
+    {% for appt in appointments %}
+      <div class="appointment-row">
+        <div>
+          <div class="who">{{ appt.patient.name }}</div>
+          <div class="when">{{ appt.slot_datetime.strftime('%a %b %d, %Y at %I:%M %p') }}</div>
+          {% if appt.notes %}<div class="when">Note: {{ appt.notes }}</div>{% endif %}
+        </div>
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <span class="status-badge status-{{ appt.status }}">{{ appt.status }}</span>
+          {% if appt.status in ('pending', 'confirmed') %}
+            <form method="post" action="{{ url_for('doctor.cancel', appointment_id=appt.id) }}"
+                  onsubmit="return confirm('Cancel this appointment?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-small">Cancel</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">No upcoming appointments yet.</div>
+{% endif %}

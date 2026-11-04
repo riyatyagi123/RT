@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Login — Svastha{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <h2>
+    {% if locked_role == 'patient' %}Patient log in
+    {% elif locked_role == 'doctor' %}Doctor log in
+    {% else %}Welcome back{% endif %}
+  </h2>
+  {% if locked_role %}
+    <p class="auth-switch" style="margin: -0.75rem 0 1.25rem; text-align: left;">
+      Not a {{ 'patient' if locked_role == 'doctor' else 'doctor' }}?
+      <a href="{{ url_for('auth.login', role='patient' if locked_role == 'doctor' else 'doctor') }}">
+        Log in as a {{ 'patient' if locked_role == 'doctor' else 'doctor' }} instead
+      </a>
+    </p>
+  {% endif %}
+
+  {% if quick_login_doctors %}
+    <div class="form-group">
+      <label for="quick-doctor-select">Logging in as a doctor? Pick your name</label>
+      <select id="quick-doctor-select">
+        <option value="">Select a doctor&hellip;</option>
+        {% for doc in quick_login_doctors %}
+          <option value="{{ doc.email }}" data-password="{{ doc.demo_password or '' }}">{{ doc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <p class="auth-switch" style="margin: -0.5rem 0 1.25rem;">We'll fill in your login details below.</p>
+  {% endif %}
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div class="form-group">
+      {{ form.email.label }}
+      {{ form.email(placeholder="ananya.gupta@example.com") }}
+      {% for error in form.email.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+    </div>
+
+    <div class="form-group">
+      {{ form.password.label }}
+      {{ form.password() }}
+      {% for error in form.password.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+    </div>
+
+    <button type="submit" class="btn-primary">Log in</button>
+  </form>
+  <p class="auth-switch">Don't have an account? <a href="{{ url_for('auth.register', role=locked_role) if locked_role else url_for('auth.register') }}">Sign up</a></p>
+</div>
+
+{% if quick_login_doctors %}
+<script>
+  document.getElementById("quick-doctor-select").addEventListener("change", function () {
+    const opt = this.options[this.selectedIndex];
+    document.getElementById("email").value = opt.value || "";
+    const demoPassword = opt.getAttribute("data-password");
+    if (demoPassword) {
+      document.getElementById("password").value = demoPassword;
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}
